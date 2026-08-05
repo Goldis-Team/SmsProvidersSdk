@@ -1,0 +1,165 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sms-providers-sdk"
+version = "0.1.0"
+description = "A unified SDK for SMS providers with both sync and async engines."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "stupidprogrammer4", email = "ai.goldis111@gmail.com" }]
+keywords = [
+    "sms",
+    "sms-gateway",
+    "kavenegar",
+    "sdk",
+    "async",
+    "sync",
+    "aiohttp",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Communications :: Telephony",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    # aiohttp drives the async engine, requests drives the sync one. aiohttp has no synchronous
+    # API, so a second client is unavoidable once it is the async transport.
+    "aiohttp>=3.9",
+    "requests>=2.31",
+]
+
+[project.urls]
+Homepage = "https://github.com/stupidprogrammer4/sms-providers-sdk"
+Repository = "https://github.com/stupidprogrammer4/sms-providers-sdk"
+Issues = "https://github.com/stupidprogrammer4/sms-providers-sdk/issues"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.11",
+    "pyright>=1.1.380",
+    "pre-commit>=3.7",
+    "ruff>=0.6",
+    { include-group = "test" },
+]
+test = [
+    "anyio>=4.4",
+    "coverage[toml]>=7.6",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["sms_providers_sdk"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/sms_providers_sdk",
+    "/tests",
+    "/main.py",
+    "/README.md",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["."]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ASYNC",# flake8-async
+    "S",    # flake8-bandit
+    "BLE",  # flake8-blind-except
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "RUF",  # ruff-specific rules
+    "PLC0415",  # import-outside-top-level
+]
+ignore = [
+    "S101",  # assert is fine in tests
+]
+# Persian digits are not a typo here — they are the alphabet this SDK's message bodies and test
+# fixtures are written in, and RUF001 flags them as lookalikes for ASCII punctuation. Allowing
+# them keeps the rule useful for the case it is actually for: a Cyrillic 'а' in an identifier.
+allowed-confusables = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹", "،", "ی", "ک"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sms_providers_sdk"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.10"
+files = ["sms_providers_sdk", "tests", "main.py"]
+strict = true
+warn_unreachable = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+asyncio_mode = "auto"
+markers = [
+    "sync: tests targeting the sync engine",
+    "async: tests targeting the async engine",
+    "integration: tests hitting real provider endpoints",
+]
+
+[tool.coverage.run]
+source = ["sms_providers_sdk"]
+branch = true
+parallel = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]
+
+[tool.pyright]
+include = ["sms_providers_sdk", "tests", "main.py"]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+# Without these, pyright resolves against the system interpreter, cannot find `pytest` or
+# `aiohttp`, and reports every symbol from them as Unknown — hundreds of errors that are really
+# one missing search path. Pylance in the editor reads the same setting.
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = false
