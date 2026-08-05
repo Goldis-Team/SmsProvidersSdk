@@ -23,9 +23,6 @@ from sms_providers_sdk.providers.kavenegar.helpers import (
 
 
 class KavenegarSync:
-    """Kavenegar over the sync engine. Satisfies
-    :class:`~sms_providers_sdk.common.interfaces.ISyncSmsProvider`."""
-
     name = NAME
 
     def __init__(
@@ -42,8 +39,6 @@ class KavenegarSync:
         self.timeout = timeout
 
     def _post(self, scope: str, method: str, payload: dict[str, Any]) -> SmsResult:
-        """One round-trip. ``secret`` is the API key, scrubbed from any error text on the way out —
-        it is a path segment of the URL, which both HTTP clients put in their exceptions."""
         raw = post_form(
             endpoint(self.config, scope, method),
             payload,

@@ -25,9 +25,6 @@ from sms_providers_sdk.providers.smsir.helpers import (
 
 
 class SmsIrAsync:
-    """SMS.ir over the async engine. Satisfies
-    :class:`~sms_providers_sdk.common.interfaces.IAsyncSmsProvider`."""
-
     name = NAME
 
     def __init__(

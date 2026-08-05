@@ -1,9 +1,3 @@
-"""Kavenegar — payload building and response reading.
-
-Everything that decides what Kavenegar was asked and what it answered lives here, so the sync and
-async engines are thin shells over the same logic and cannot drift apart.
-"""
-
 from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import quote
@@ -42,27 +36,20 @@ from sms_providers_sdk.providers.kavenegar.data import KavenegarConfig, Kavenega
 
 
 def endpoint(config: KavenegarConfig, scope: str, method: str) -> str:
-    """The URL for one Kavenegar method, with the API key in it.
-
-    The key is percent-encoded even though Kavenegar's keys are hex: a key pasted with a stray
-    character would otherwise change the *path* being requested, and the resulting 404 would look
-    like the method was wrong rather than the credential.
-    """
     return BASE_URL.format(api_key=quote(config.api_key, safe=""), scope=scope, method=method)
 
 
-def _line(config: KavenegarConfig, sender: str) -> str:
-    """The sender line for this message: the per-message one, else the configured default."""
-    return (sender or config.sender).strip()
+def _line(config: KavenegarConfig, sender: str, *, operation: str) -> str:
+    line = (sender or config.sender).strip()
+    if not line:
+        raise ConfigurationError(
+            f"{NAME} requires a sending line on {operation} — pass sender=… when building the "
+            f"provider, or on the message"
+        )
+    return line
 
 
 def _common_fields(payload: dict[str, Any], extra: Mapping[str, Any]) -> dict[str, Any]:
-    """Merge the caller's provider-specific parameters over the ones built from the message.
-
-    Last write wins, deliberately: ``extra`` is the escape hatch, so it has to be able to override
-    a field this module set — including ``receptor`` for the rare case where a number must go out
-    in a form :func:`~sms_providers_sdk.common.utils.normalize_number` would rewrite.
-    """
     payload.update(extra)
     return payload
 
@@ -73,9 +60,7 @@ def build_send_payload(config: KavenegarConfig, message: SmsMessage) -> dict[str
         "receptor": check_receptor(message.receptor, provider=NAME),
         "message": check_text(message.text, provider=NAME, limit=MAX_MESSAGE_LENGTH),
     }
-    line = _line(config, message.sender)
-    if line:
-        payload["sender"] = line
+    payload["sender"] = _line(config, message.sender, operation="a send")
     if message.send_at is not None:
         payload["date"] = int(message.send_at)
     if message.local_id:
@@ -84,12 +69,6 @@ def build_send_payload(config: KavenegarConfig, message: SmsMessage) -> dict[str
 
 
 def build_bulk_payload(config: KavenegarConfig, message: BulkSmsMessage) -> dict[str, Any]:
-    """``sms/send`` with comma-separated recipients — one text, one line, many numbers.
-
-    Duplicates are **not** removed. Kavenegar sends and bills one message per entry, so silently
-    collapsing them would change what the caller is charged for and hide a bug in whatever built
-    the list; the count in the result is the honest signal that something upstream is wrong.
-    """
     numbers = [check_receptor(number, provider=NAME) for number in message.receptors]
     if not numbers:
         raise ConfigurationError(f"{NAME} was given an empty recipient list")
@@ -103,9 +82,7 @@ def build_bulk_payload(config: KavenegarConfig, message: BulkSmsMessage) -> dict
         "receptor": ",".join(numbers),
         "message": check_text(message.text, provider=NAME, limit=MAX_MESSAGE_LENGTH),
     }
-    line = _line(config, message.sender)
-    if line:
-        payload["sender"] = line
+    payload["sender"] = _line(config, message.sender, operation="a bulk send")
     if message.send_at is not None:
         payload["date"] = int(message.send_at)
     if message.local_ids:
@@ -120,15 +97,6 @@ def build_bulk_payload(config: KavenegarConfig, message: BulkSmsMessage) -> dict
 
 
 def token_fields(tokens: Sequence[str] | Mapping[str, str]) -> dict[str, str]:
-    """The template's values as Kavenegar's ``token``/``token2``…``token20`` parameters.
-
-    A sequence fills them in order. A mapping is passed through under its own keys, for a template
-    whose placeholders you already name.
-
-    Whitespace is rejected everywhere except ``token10`` and ``token20``, which are the only slots
-    Kavenegar's parser accepts it in. It answers a space in any other slot with a generic failure
-    that never mentions spaces, so this is checked here, naming the slot, before the call is made.
-    """
     if isinstance(tokens, Mapping):
         fields = {str(key): str(value) for key, value in tokens.items()}
     else:
@@ -156,13 +124,6 @@ def token_fields(tokens: Sequence[str] | Mapping[str, str]) -> dict[str, str]:
 
 
 def build_pattern_payload(config: KavenegarConfig, message: PatternMessage) -> dict[str, Any]:
-    """``verify/lookup`` — one recipient, one template, its tokens.
-
-    Kavenegar's lookup has no sender parameter: the line is a property of the template, set when
-    it was approved. A ``sender`` on the message would therefore be dropped without trace, so it
-    is refused instead — sending a one-time code from an unexpected line is exactly the kind of
-    thing that only surfaces as a support ticket.
-    """
     if message.sender:
         raise ConfigurationError(
             f"{NAME} pattern sends have no sender parameter — the line is fixed by the "
@@ -192,13 +153,6 @@ def read_details(raw: dict[str, Any]) -> KavenegarDetails:
 
 
 def read_entries(raw: dict[str, Any]) -> tuple[SentMessage, ...]:
-    """The ``entries`` array: one record per recipient.
-
-    ``verify/lookup`` returns a bare object rather than a one-element array, so both shapes are
-    accepted. Kavenegar's own Persian ``statustext`` is kept where it sends one, with the English
-    table as the fallback — the code is the same either way and lives on
-    :attr:`SentMessage.status`.
-    """
     entries = raw.get("entries")
     listed = [as_mapping(entries)] if isinstance(entries, dict) else as_sequence(entries)
     messages: list[SentMessage] = []
@@ -228,13 +182,6 @@ def read_entries(raw: dict[str, Any]) -> tuple[SentMessage, ...]:
 
 
 def parse_response(raw: dict[str, Any]) -> SmsResult:
-    """Turn a Kavenegar response into a result, or raise with what it actually said.
-
-    Two ways this raises. A ``return.status`` other than 200 is a refusal — bad key, no credit,
-    unknown template — and carries the code so a caller can branch on it. A 200 with no entries is
-    the stranger case: nothing was sent, but nothing said so, and returning an empty result would
-    let it pass for a successful send in every call site that does not count the messages.
-    """
     details = read_details(raw)
     if details.return_status != SUCCESS_STATUS:
         reason = (
@@ -252,7 +199,6 @@ def parse_response(raw: dict[str, Any]) -> SmsResult:
             code=details.return_status,
             raw=raw,
         )
-    # Kavenegar prices per recipient, so the call's total is the sum of what it reported.
     return SmsResult(
         messages=messages,
         cost=sum_costs(entry.cost for entry in messages),

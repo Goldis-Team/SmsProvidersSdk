@@ -25,9 +25,6 @@ from sms_providers_sdk.providers.smsir.helpers import (
 
 
 class SmsIrSync:
-    """SMS.ir over the sync engine. Satisfies
-    :class:`~sms_providers_sdk.common.interfaces.ISyncSmsProvider`."""
-
     name = NAME
 
     def __init__(

@@ -158,7 +158,9 @@ KavenegarSync(api_key, *, sender="", timeout=15.0)
 KavenegarAsync(api_key, *, sender="", timeout=15.0)
 ```
 
-`sender` is the default line for every message from this instance; leave it empty to use the account's default line, which is the usual setup. A `sender` on an individual `SmsMessage` overrides it.
+`sender` is the line every message from this instance goes out on, and a `sender` on an individual `SmsMessage` overrides it. One of the two is **required** for `send` and `send_bulk`.
+
+Kavenegar's API documents `sender` as optional, falling back to the account's default line — but that default is unset unless someone configured it, and the fallback fails with 412 "invalid sender number", naming a value you never supplied. So the SDK requires a line up front and raises `ConfigurationError` instead. (Kavenegar's own SDK hits the same 412; this is an account setting, not a client difference.) `send_pattern` is exempt: `verify/lookup` has no sender parameter, because the line belongs to the template.
 
 | Method | Endpoint |
 | --- | --- |

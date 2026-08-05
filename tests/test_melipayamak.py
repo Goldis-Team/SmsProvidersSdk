@@ -1,10 +1,3 @@
-"""Melipayamak (console API), both engines, against a real HTTP server.
-
-Every test that exercises the sync class has an async twin with the same fixtures. That pairing is
-what keeps the two engines from drifting apart — a change that breaks one and not the other shows
-up here rather than in production.
-"""
-
 import socket
 
 import pytest
@@ -35,12 +28,9 @@ SHARED = "/send/shared/"
 RECEPTOR = "09121234567"
 TEXT = "سفارش شما ثبت شد."
 
-#: Melipayamak's ids are 64-bit and its own examples already exceed int32.
 REC_ID = 3741437414
 REC_ID_2 = 3741437415
 
-#: What Melipayamak's docs literally show for `status`: "description of the error, if one occurs".
-#: Its value on a *successful* send is unspecified, which is why nothing here matches against it.
 STATUS_PLACEHOLDER = "شرح خطا در صورت بروز"
 
 
@@ -50,18 +40,13 @@ def a_provider(**overrides: object) -> MelipayamakSync:
     return MelipayamakSync(API_KEY, **options)  # type: ignore[arg-type]
 
 
-# ---------------------------------------------------------------------------------------------
-# Single send
-# ---------------------------------------------------------------------------------------------
-
-
 def test_send_sync(stub: Stub) -> None:
     stub.reply(SIMPLE, {"recId": REC_ID, "status": STATUS_PLACEHOLDER})
     result = a_provider().send(SmsMessage(receptor=RECEPTOR, text=TEXT))
 
     assert result.message_id == "3741437414"
     assert result.receptors == (RECEPTOR,)
-    assert result.cost is None  # Melipayamak reports none on either send endpoint
+    assert result.cost is None
 
     assert stub.last(SIMPLE).json == {"from": LINE, "to": RECEPTOR, "text": TEXT}
 
@@ -75,9 +60,7 @@ async def test_send_async(stub: Stub) -> None:
 
 
 def test_a_big_id_survives_intact(stub: Stub) -> None:
-    """Melipayamak's ids run past 2^53, where a JavaScript client silently corrupts them. Python's
-    integers are arbitrary-precision, so the only requirement is not to round-trip through float."""
-    huge = 9007199254740993  # 2**53 + 1
+    huge = 9007199254740993
     stub.reply(SIMPLE, {"recId": huge, "status": None})
     result = a_provider().send(SmsMessage(receptor=RECEPTOR, text=TEXT))
     assert result.message_id == "9007199254740993"
@@ -130,14 +113,7 @@ def test_extra_reaches_the_payload(stub: Stub) -> None:
     assert stub.last(SIMPLE).json["udh"] == "0605040B8423F0"
 
 
-# ---------------------------------------------------------------------------------------------
-# What Melipayamak has nowhere to put
-# ---------------------------------------------------------------------------------------------
-
-
 def test_scheduling_is_refused_rather_than_dropped(stub: Stub) -> None:
-    """Scheduling is a separate ``send/schedule`` method. Dropping ``send_at`` here would send the
-    message immediately — the one failure a caller scheduling a message would never check for."""
     with pytest.raises(ConfigurationError, match="send the message immediately instead"):
         a_provider().send(SmsMessage(receptor=RECEPTOR, text=TEXT, send_at=1893456000))
     assert stub.paths == []
@@ -153,11 +129,6 @@ def test_bulk_local_ids_are_refused(stub: Stub) -> None:
         a_provider().send_bulk(
             BulkSmsMessage(receptors=[RECEPTOR], text=TEXT, local_ids=["order-1"])
         )
-
-
-# ---------------------------------------------------------------------------------------------
-# Bulk send
-# ---------------------------------------------------------------------------------------------
 
 
 def test_send_bulk_sync(stub: Stub) -> None:
@@ -184,8 +155,6 @@ async def test_send_bulk_async(stub: Stub) -> None:
 
 
 def test_recipients_are_sent_as_a_json_array(stub: Stub) -> None:
-    """``to`` is declared ``System.String[]`` — a comma-joined string is rejected by the
-    deserialiser, which is what the legacy payamak-panel API wanted instead."""
     stub.reply(ADVANCED, {"recIds": [REC_ID]})
     a_provider().send_bulk(BulkSmsMessage(receptors=[RECEPTOR], text=TEXT))
     assert stub.last(ADVANCED).json["to"] == [RECEPTOR]
@@ -205,17 +174,9 @@ def test_an_empty_batch_is_refused(stub: Stub) -> None:
 
 
 def test_a_large_batch_is_not_capped_locally(stub: Stub) -> None:
-    """Melipayamak documents no recipient limit for this endpoint. Inventing one would refuse
-    batches the account is entitled to send; if there is a limit, its own error is the accurate
-    one."""
     stub.reply(ADVANCED, {"recIds": [REC_ID] * 300})
     result = a_provider().send_bulk(BulkSmsMessage(receptors=[RECEPTOR] * 300, text=TEXT))
     assert len(result) == 300
-
-
-# ---------------------------------------------------------------------------------------------
-# Pattern send
-# ---------------------------------------------------------------------------------------------
 
 
 def test_send_pattern_sync(stub: Stub) -> None:
@@ -247,8 +208,6 @@ def test_the_body_id_is_sent_as_an_integer(stub: Stub) -> None:
 
 
 def test_named_tokens_are_refused(stub: Stub) -> None:
-    """The mirror of SMS.ir. Melipayamak's ``args`` is a bare array filled in order, so a mapping's
-    keys would be dropped and its values sent in an order the caller never chose."""
     with pytest.raises(ConfigurationError, match="positional arguments"):
         a_provider().send_pattern(
             PatternMessage(receptor=RECEPTOR, pattern="524", tokens={"CODE": "12345"})
@@ -268,8 +227,6 @@ def test_a_non_numeric_template_is_refused(stub: Stub) -> None:
 
 
 def test_a_body_id_beyond_int32_is_refused(stub: Stub) -> None:
-    """``bodyId`` is ``System.Int32``; anything larger is rejected by the deserialiser with an
-    error that talks about JSON conversion rather than about the template."""
     with pytest.raises(ConfigurationError, match="32-bit integer"):
         a_provider().send_pattern(PatternMessage(receptor=RECEPTOR, pattern="2147483648"))
 
@@ -279,11 +236,6 @@ def test_a_pattern_send_refuses_a_sender(stub: Stub) -> None:
         a_provider().send_pattern(
             PatternMessage(receptor=RECEPTOR, pattern="524", tokens=["1"], sender=LINE)
         )
-
-
-# ---------------------------------------------------------------------------------------------
-# Refusals and failures
-# ---------------------------------------------------------------------------------------------
 
 
 def test_a_refusal_raises_with_melipayamaks_own_words(stub: Stub) -> None:
@@ -303,8 +255,6 @@ async def test_a_refusal_raises_on_the_async_engine_too(stub: Stub) -> None:
 
 
 def test_a_refusal_carries_no_numeric_code(stub: Stub) -> None:
-    """Melipayamak reports failures as sentences, not numbers. Passing the HTTP status off as a
-    provider code would give callers something to branch on that it never promised to keep."""
     stub.reply(SIMPLE, {"status": "اعتبار کافی نیست"}, status=400)
     with pytest.raises(ProviderError) as exc:
         a_provider().send(SmsMessage(receptor=RECEPTOR, text=TEXT))
@@ -318,8 +268,6 @@ def test_a_bulk_refusal_raises(stub: Stub) -> None:
 
 
 def test_a_problem_details_body_is_read_for_what_it_says(stub: Stub) -> None:
-    """The other failure shape: ASP.NET's model binder answers before Melipayamak's code runs, and
-    its ``status`` is the integer 400. Reading that as text would report the failure as "400"."""
     stub.reply(
         SIMPLE,
         {
@@ -352,8 +300,6 @@ def test_a_bulk_call_with_an_empty_id_list_raises(stub: Stub) -> None:
 
 
 def test_an_html_answer_is_a_network_error(stub: Stub) -> None:
-    """A wrong method or path does not 404 — Melipayamak answers HTTP 200 with the console's own
-    Angular page, so the transport has to decide on the body rather than on the status line."""
     stub.reply_text(SIMPLE, "<!doctype html><html><app-root></app-root></html>", status=200)
     with pytest.raises(NetworkError, match="non-JSON"):
         a_provider().send(SmsMessage(receptor=RECEPTOR, text=TEXT))
@@ -376,11 +322,6 @@ def test_details_carry_the_status_and_ids(stub: Stub) -> None:
     assert isinstance(result.details, MelipayamakDetails)
     assert result.details.status_message == STATUS_PLACEHOLDER
     assert result.details.rec_ids == ("3741437414", "3741437415")
-
-
-# ---------------------------------------------------------------------------------------------
-# The API key must not leak
-# ---------------------------------------------------------------------------------------------
 
 
 def _closed_port() -> int:
@@ -416,11 +357,6 @@ def test_the_api_key_is_scrubbed_from_an_html_body(stub: Stub) -> None:
 
 def test_the_api_key_is_not_in_the_config_repr() -> None:
     assert API_KEY not in repr(a_provider().config)
-
-
-# ---------------------------------------------------------------------------------------------
-# Registry and protocols
-# ---------------------------------------------------------------------------------------------
 
 
 def test_the_registry_lists_every_provider() -> None:

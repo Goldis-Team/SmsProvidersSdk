@@ -1,10 +1,3 @@
-"""SMS.ir, both engines, against a real HTTP server.
-
-Every test that exercises the sync class has an async twin with the same fixtures. That pairing is
-what keeps the two engines from drifting apart — a change that breaks one and not the other shows
-up here rather than in production.
-"""
-
 from decimal import Decimal
 
 import pytest
@@ -54,11 +47,6 @@ def a_provider(**overrides: object) -> SmsIrSync:
     options: dict[str, object] = {"line_number": LINE}
     options.update(overrides)
     return SmsIrSync(API_KEY, **options)  # type: ignore[arg-type]
-
-
-# ---------------------------------------------------------------------------------------------
-# Single send — SMS.ir has no one-recipient endpoint, so this is send/bulk with one number
-# ---------------------------------------------------------------------------------------------
 
 
 def test_send_sync(stub: Stub) -> None:
@@ -157,11 +145,6 @@ def test_an_empty_message_is_refused(stub: Stub) -> None:
         a_provider().send(SmsMessage(receptor=RECEPTOR, text="   "))
 
 
-# ---------------------------------------------------------------------------------------------
-# Bulk send
-# ---------------------------------------------------------------------------------------------
-
-
 def test_send_bulk_sync(stub: Stub) -> None:
     stub.reply(BULK, bulk_data(501, 502, cost=2.5))
     result = a_provider().send_bulk(
@@ -183,8 +166,6 @@ async def test_send_bulk_async(stub: Stub) -> None:
 
 
 def test_bulk_cost_is_on_the_result_not_the_messages(stub: Stub) -> None:
-    """SMS.ir prices the batch, not the message. Splitting the total across recipients would be
-    inventing a per-message figure it never reported."""
     stub.reply(BULK, bulk_data(501, 502, cost=2.5))
     result = a_provider().send_bulk(BulkSmsMessage(receptors=[RECEPTOR, "09351234567"], text=TEXT))
     assert result.cost == Decimal("2.5")
@@ -199,8 +180,6 @@ def test_a_fractional_cost_keeps_its_exact_value(stub: Stub) -> None:
 
 
 def test_ids_are_left_unpaired_when_the_counts_disagree(stub: Stub) -> None:
-    """Pairing is positional, so a count mismatch makes it unknowable. An id attributed to the
-    wrong number is worse than one attributed to nobody."""
     stub.reply(BULK, bulk_data(501))
     result = a_provider().send_bulk(BulkSmsMessage(receptors=[RECEPTOR, "09351234567"], text=TEXT))
     assert result.message_ids == ("501",)
@@ -233,11 +212,6 @@ def test_the_pack_id_comes_back_on_details(stub: Stub) -> None:
     result = a_provider().send_bulk(BulkSmsMessage(receptors=[RECEPTOR], text=TEXT))
     assert isinstance(result.details, SmsIrDetails)
     assert result.details.pack_id == "7f3a-…"
-
-
-# ---------------------------------------------------------------------------------------------
-# Pattern send
-# ---------------------------------------------------------------------------------------------
 
 
 def test_send_pattern_sync(stub: Stub) -> None:
@@ -274,8 +248,6 @@ def test_a_pattern_send_costs_the_same_on_the_result_and_the_message(stub: Stub)
 
 
 def test_positional_tokens_are_refused(stub: Stub) -> None:
-    """SMS.ir placeholders are ``#NAME#`` and the API matches on the name. There is no ordering to
-    fall back on, and guessing one puts the right value in the wrong slot of a sent message."""
     with pytest.raises(ConfigurationError, match="named parameters"):
         a_provider().send_pattern(
             PatternMessage(receptor=RECEPTOR, pattern="100000", tokens=["12345"])
@@ -290,8 +262,6 @@ def test_a_template_with_no_parameters_is_fine(stub: Stub) -> None:
 
 
 def test_a_non_numeric_template_is_refused(stub: Stub) -> None:
-    """SMS.ir identifies templates by id; Kavenegar by name. Passing one to the other is the
-    obvious mistake when switching providers."""
     with pytest.raises(ConfigurationError, match="numeric id"):
         a_provider().send_pattern(
             PatternMessage(receptor=RECEPTOR, pattern="verify", tokens={"CODE": "1"})
@@ -320,11 +290,6 @@ def test_a_pattern_send_refuses_a_sender(stub: Stub) -> None:
         )
 
 
-# ---------------------------------------------------------------------------------------------
-# Refusals and failures
-# ---------------------------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("status", "http_status", "expected"),
     [
@@ -339,8 +304,6 @@ def test_a_pattern_send_refuses_a_sender(stub: Stub) -> None:
 def test_a_refusal_raises_with_the_code_and_an_english_reason(
     stub: Stub, status: int, http_status: int, expected: str
 ) -> None:
-    """SMS.ir mirrors its business failure into the HTTP status. The body is the useful part, so
-    the transport decodes it regardless of what the status line said."""
     stub.reply(BULK, {"status": status, "message": "خطا", "data": None}, status=http_status)
     with pytest.raises(ProviderError) as exc:
         a_provider().send(SmsMessage(receptor=RECEPTOR, text=TEXT))
@@ -407,11 +370,6 @@ def test_details_carry_the_status(stub: Stub) -> None:
     assert result.details.status == 1
     assert result.details.status_message == "موفق"
     assert result.details.status_description == "successful"
-
-
-# ---------------------------------------------------------------------------------------------
-# Registry and protocols
-# ---------------------------------------------------------------------------------------------
 
 
 def test_the_registry_knows_smsir() -> None:

@@ -1,9 +1,3 @@
-"""SMS.ir — payload building and response reading.
-
-Everything that decides what SMS.ir was asked and what it answered lives here, so the sync and
-async engines are thin shells over the same logic and cannot drift apart.
-"""
-
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -46,12 +40,6 @@ def auth_headers(config: SmsIrConfig) -> dict[str, str]:
 
 
 def check_line(config: SmsIrConfig, sender: str) -> int:
-    """The sending line for this message, as the integer SMS.ir declares it to be.
-
-    Required, and with no server-side default to fall back on: SMS.ir answers a missing or unknown
-    line with status 101, which reads identically whether the line was omitted, mistyped, or simply
-    not owned by the account. Saying which of those it is only works here.
-    """
     line = (sender or config.line_number).strip()
     if not line:
         raise ConfigurationError(
@@ -77,12 +65,6 @@ def _mobiles(receptors: Sequence[str]) -> list[str]:
 
 
 def build_single_payload(config: SmsIrConfig, message: SmsMessage) -> dict[str, Any]:
-    """``send/bulk`` with one recipient.
-
-    SMS.ir has no dedicated single-send endpoint for free-form text, so this is the same call with
-    a one-element list. The response shape is the same too, which is why both go through
-    :func:`parse_bulk_response`.
-    """
     payload: dict[str, Any] = {
         "lineNumber": check_line(config, message.sender),
         "messageText": check_text(message.text, provider=NAME),
@@ -95,12 +77,6 @@ def build_single_payload(config: SmsIrConfig, message: SmsMessage) -> dict[str, 
 
 
 def build_bulk_payload(config: SmsIrConfig, message: BulkSmsMessage) -> dict[str, Any]:
-    """``send/bulk`` — one text, one line, up to 100 numbers.
-
-    ``local_ids`` has nowhere to go: SMS.ir has no client-supplied message reference, only the
-    ``packId`` it assigns. Refusing them is better than accepting them into a void, since the whole
-    point of a local id is that it comes back.
-    """
     if message.local_ids:
         raise ConfigurationError(
             f"{NAME} has no client-supplied message id — it assigns a packId instead, which comes "
@@ -118,13 +94,6 @@ def build_bulk_payload(config: SmsIrConfig, message: BulkSmsMessage) -> dict[str
 
 
 def parameter_list(tokens: Sequence[str] | Mapping[str, str]) -> list[dict[str, str]]:
-    """The template's values as SMS.ir's ``[{"name": …, "value": …}]``.
-
-    A mapping only. SMS.ir placeholders are ``#NAME#`` and the API matches on the name, so a
-    positional sequence has nothing to map onto — there is no documented ordering to fall back on,
-    and inventing one would put the right value in the wrong slot of a message that has already
-    been sent. Kavenegar's numbered tokens are the exception here, not the rule.
-    """
     if not isinstance(tokens, Mapping):
         if not tokens:
             return []
@@ -149,11 +118,6 @@ def parameter_list(tokens: Sequence[str] | Mapping[str, str]) -> list[dict[str, 
 
 
 def build_pattern_payload(config: SmsIrConfig, message: PatternMessage) -> dict[str, Any]:
-    """``send/verify`` — one recipient, one template, its named parameters.
-
-    Like Kavenegar's lookup, this has no line parameter: the line belongs to the template, fixed
-    when it was approved. A ``sender`` would be dropped without trace, so it is refused instead.
-    """
     if message.sender:
         raise ConfigurationError(
             f"{NAME} pattern sends have no line parameter — the line is fixed by template "
@@ -187,11 +151,6 @@ def read_details(raw: dict[str, Any]) -> SmsIrDetails:
 
 
 def accepted_data(raw: dict[str, Any]) -> tuple[SmsIrDetails, dict[str, Any]]:
-    """The ``data`` object, once the call is known to have been accepted.
-
-    Raises with SMS.ir's own code on anything else — bad key, no credit, unknown template, a
-    recipient on the platform blacklist — so a caller can branch on ``exc.code``.
-    """
     details = read_details(raw)
     if details.status != SUCCESS_STATUS:
         reason = details.status_description or details.status_message or f"status {details.status}"
@@ -200,14 +159,6 @@ def accepted_data(raw: dict[str, Any]) -> tuple[SmsIrDetails, dict[str, Any]]:
 
 
 def parse_bulk_response(raw: dict[str, Any], mobiles: Sequence[str], line: int) -> SmsResult:
-    """Turn a bulk-send response into a result, or raise with what SMS.ir actually said.
-
-    SMS.ir echoes no recipients: ``data.messageIds`` is a flat list, documented as being in the
-    order the numbers were submitted. So the numbers are paired back by position — but only when
-    the counts match. If they do not, the pairing is unknowable and the recipients are left blank
-    rather than guessed, because an id attributed to the wrong number is worse than one attributed
-    to nobody.
-    """
     details, data = accepted_data(raw)
     ids = as_sequence(data.get("messageIds"))
     if not ids:
@@ -226,8 +177,6 @@ def parse_bulk_response(raw: dict[str, Any], mobiles: Sequence[str], line: int) 
         )
         for index, message_id in enumerate(ids)
     )
-    # The cost is reported once for the batch, not per message, so it belongs on the result and
-    # `SentMessage.cost` stays None — see the note on `SmsResult.cost`.
     return SmsResult(messages=messages, cost=as_decimal(data.get("cost")), raw=raw, details=details)
 
 
@@ -242,6 +191,5 @@ def parse_pattern_response(raw: dict[str, Any], mobile: str) -> SmsResult:
             raw=raw,
         )
     cost = as_decimal(data.get("cost"))
-    # One message, so the call's cost and the message's cost are the same number.
     entry = SentMessage(message_id=message_id, receptor=mobile, cost=cost, raw=data)
     return SmsResult(messages=(entry,), cost=cost, raw=raw, details=details)

@@ -1,17 +1,3 @@
-"""Every provider, plus a registry for picking one by name at runtime.
-
-Each provider directory holds the same five things: ``constants.py`` (endpoints and the fixed
-values its protocol defines), ``data.py`` (credentials and the provider's own result records —
-dataclasses only), ``helpers.py`` (the pure functions that build payloads and read responses), and
-``sync_engine.py`` / ``async_engine.py``, which are thin shells over both. That split is why the
-two engines cannot drift apart: every decision about what a provider said lives in ``helpers.py``
-and is shared, so only the transport call differs.
-
-The registry holds **classes, not instances**. A shared instance can carry exactly one account's
-credentials, so build one per account with :func:`get_sync_provider` / :func:`get_async_provider`
-rather than caching a provider globally.
-"""
-
 from typing import Any
 
 from sms_providers_sdk.common.exceptions import ConfigurationError

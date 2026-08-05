@@ -1,26 +1,3 @@
-"""A unified SDK for Iranian SMS providers, in a sync and an async flavour.
-
-Every provider ships ``<Name>Sync`` and ``<Name>Async`` with the same three methods —
-:meth:`send`, :meth:`send_bulk` and :meth:`send_pattern` — taking and returning the same types.
-Moving between engines is adding or removing ``await``, never a rewrite.
-
-    from sms_providers_sdk import KavenegarSync, SmsMessage
-
-    sms = KavenegarSync(api_key="…")
-    result = sms.send(SmsMessage(receptor="09121234567", text="سلام"))
-    print(result.message_id)
-
-A send that did not happen **raises** — :class:`ProviderError` when the provider refused,
-:class:`NetworkError` when it could not be reached, :class:`ConfigurationError` when the message
-could not be built. What comes back is :class:`SmsResult`, a description of what the provider
-accepted, with one :class:`SentMessage` per recipient.
-
-Each provider package is laid out the same way: ``constants.py`` (endpoints and the fixed values
-its protocol defines), ``data.py`` (credentials and the provider's own result records — dataclasses
-only), ``helpers.py`` (the pure functions that build payloads and read responses), and
-``sync_engine.py`` / ``async_engine.py``.
-"""
-
 from sms_providers_sdk.common.data import BulkSmsMessage as BulkSmsMessage
 from sms_providers_sdk.common.data import PatternMessage as PatternMessage
 from sms_providers_sdk.common.data import ProviderDetails as ProviderDetails

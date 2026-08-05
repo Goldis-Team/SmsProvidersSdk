@@ -1,13 +1,3 @@
-"""The two engine interfaces.
-
-Both protocols carry the same three methods with the same arguments and the same return types; the
-only difference is the ``async``. Porting a call site from one engine to the other is adding or
-removing ``await``, never a rewrite — which is the whole point of shipping both.
-
-These are :class:`typing.Protocol`, so providers satisfy them structurally. No provider inherits
-from anything here, and your own provider does not have to either.
-"""
-
 from typing import Protocol, runtime_checkable
 
 from sms_providers_sdk.common.data import (

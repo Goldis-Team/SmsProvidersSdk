@@ -29,9 +29,6 @@ from sms_providers_sdk.providers.melipayamak.helpers import (
 
 
 class MelipayamakSync:
-    """Melipayamak over the sync engine. Satisfies
-    :class:`~sms_providers_sdk.common.interfaces.ISyncSmsProvider`."""
-
     name = NAME
 
     def __init__(
@@ -48,8 +45,6 @@ class MelipayamakSync:
         self.timeout = timeout
 
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """One round-trip. ``secret`` is the API key, scrubbed from any error text on the way out —
-        it is a path segment of the URL, which both HTTP clients put in their exceptions."""
         return post_json(
             endpoint(self.config, path),
             payload,
