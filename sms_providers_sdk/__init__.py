@@ -38,6 +38,10 @@ from sms_providers_sdk.providers import KavenegarAsync as KavenegarAsync
 from sms_providers_sdk.providers import KavenegarConfig as KavenegarConfig
 from sms_providers_sdk.providers import KavenegarDetails as KavenegarDetails
 from sms_providers_sdk.providers import KavenegarSync as KavenegarSync
+from sms_providers_sdk.providers import SmsIrAsync as SmsIrAsync
+from sms_providers_sdk.providers import SmsIrConfig as SmsIrConfig
+from sms_providers_sdk.providers import SmsIrDetails as SmsIrDetails
+from sms_providers_sdk.providers import SmsIrSync as SmsIrSync
 from sms_providers_sdk.providers import available as available
 from sms_providers_sdk.providers import get_async_provider as get_async_provider
 from sms_providers_sdk.providers import get_sync_provider as get_sync_provider

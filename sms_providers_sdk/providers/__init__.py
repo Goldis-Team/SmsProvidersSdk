@@ -20,13 +20,19 @@ from sms_providers_sdk.providers.kavenegar import KavenegarAsync as KavenegarAsy
 from sms_providers_sdk.providers.kavenegar import KavenegarConfig as KavenegarConfig
 from sms_providers_sdk.providers.kavenegar import KavenegarDetails as KavenegarDetails
 from sms_providers_sdk.providers.kavenegar import KavenegarSync as KavenegarSync
+from sms_providers_sdk.providers.smsir import SmsIrAsync as SmsIrAsync
+from sms_providers_sdk.providers.smsir import SmsIrConfig as SmsIrConfig
+from sms_providers_sdk.providers.smsir import SmsIrDetails as SmsIrDetails
+from sms_providers_sdk.providers.smsir import SmsIrSync as SmsIrSync
 
 SYNC_PROVIDERS: dict[str, type[ISyncSmsProvider]] = {
     "kavenegar": KavenegarSync,
+    "smsir": SmsIrSync,
 }
 
 ASYNC_PROVIDERS: dict[str, type[IAsyncSmsProvider]] = {
     "kavenegar": KavenegarAsync,
+    "smsir": SmsIrAsync,
 }
 
 

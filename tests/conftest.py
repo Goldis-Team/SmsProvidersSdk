@@ -21,10 +21,14 @@ from urllib.parse import parse_qs
 import pytest
 
 from sms_providers_sdk.providers.kavenegar import helpers as kavenegar_helpers
+from sms_providers_sdk.providers.smsir import helpers as smsir_helpers
 
 KAVENEGAR_TEMPLATE = "/v1/{api_key}/{scope}/{method}.json"
 """Kavenegar's URL shape, kept identical to the real one so the tests exercise the same path
 building — including the API key sitting in the path, which is what the redaction tests check."""
+
+SMSIR_PREFIX = "/v1"
+"""SMS.ir's base path. Its credential travels in a header, so the path carries nothing secret."""
 
 
 @dataclass
@@ -150,6 +154,7 @@ def stub(monkeypatch: pytest.MonkeyPatch) -> Iterator[Stub]:
     thread.start()
 
     monkeypatch.setattr(kavenegar_helpers, "BASE_URL", f"{controller.base_url}{KAVENEGAR_TEMPLATE}")
+    monkeypatch.setattr(smsir_helpers, "BASE_URL", f"{controller.base_url}{SMSIR_PREFIX}")
 
     try:
         yield controller
