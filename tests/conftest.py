@@ -21,6 +21,7 @@ from urllib.parse import parse_qs
 import pytest
 
 from sms_providers_sdk.providers.kavenegar import helpers as kavenegar_helpers
+from sms_providers_sdk.providers.melipayamak import helpers as melipayamak_helpers
 from sms_providers_sdk.providers.smsir import helpers as smsir_helpers
 
 KAVENEGAR_TEMPLATE = "/v1/{api_key}/{scope}/{method}.json"
@@ -29,6 +30,9 @@ building — including the API key sitting in the path, which is what the redact
 
 SMSIR_PREFIX = "/v1"
 """SMS.ir's base path. Its credential travels in a header, so the path carries nothing secret."""
+
+MELIPAYAMAK_PREFIX = "/api"
+"""Melipayamak's base path. Its key is the last segment of every path, as with Kavenegar."""
 
 
 @dataclass
@@ -155,6 +159,9 @@ def stub(monkeypatch: pytest.MonkeyPatch) -> Iterator[Stub]:
 
     monkeypatch.setattr(kavenegar_helpers, "BASE_URL", f"{controller.base_url}{KAVENEGAR_TEMPLATE}")
     monkeypatch.setattr(smsir_helpers, "BASE_URL", f"{controller.base_url}{SMSIR_PREFIX}")
+    monkeypatch.setattr(
+        melipayamak_helpers, "BASE_URL", f"{controller.base_url}{MELIPAYAMAK_PREFIX}"
+    )
 
     try:
         yield controller
