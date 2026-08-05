@@ -16,10 +16,18 @@ from typing import Any
 
 from sms_providers_sdk.common.exceptions import ConfigurationError
 from sms_providers_sdk.common.interfaces import IAsyncSmsProvider, ISyncSmsProvider
+from sms_providers_sdk.providers.kavenegar import KavenegarAsync as KavenegarAsync
+from sms_providers_sdk.providers.kavenegar import KavenegarConfig as KavenegarConfig
+from sms_providers_sdk.providers.kavenegar import KavenegarDetails as KavenegarDetails
+from sms_providers_sdk.providers.kavenegar import KavenegarSync as KavenegarSync
 
-SYNC_PROVIDERS: dict[str, type[ISyncSmsProvider]] = {}
+SYNC_PROVIDERS: dict[str, type[ISyncSmsProvider]] = {
+    "kavenegar": KavenegarSync,
+}
 
-ASYNC_PROVIDERS: dict[str, type[IAsyncSmsProvider]] = {}
+ASYNC_PROVIDERS: dict[str, type[IAsyncSmsProvider]] = {
+    "kavenegar": KavenegarAsync,
+}
 
 
 def available() -> tuple[str, ...]:

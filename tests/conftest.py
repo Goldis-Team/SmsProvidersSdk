@@ -20,6 +20,12 @@ from urllib.parse import parse_qs
 
 import pytest
 
+from sms_providers_sdk.providers.kavenegar import helpers as kavenegar_helpers
+
+KAVENEGAR_TEMPLATE = "/v1/{api_key}/{scope}/{method}.json"
+"""Kavenegar's URL shape, kept identical to the real one so the tests exercise the same path
+building — including the API key sitting in the path, which is what the redaction tests check."""
+
 
 @dataclass
 class Exchange:
@@ -142,6 +148,8 @@ def stub(monkeypatch: pytest.MonkeyPatch) -> Iterator[Stub]:
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
     thread.daemon = True
     thread.start()
+
+    monkeypatch.setattr(kavenegar_helpers, "BASE_URL", f"{controller.base_url}{KAVENEGAR_TEMPLATE}")
 
     try:
         yield controller
